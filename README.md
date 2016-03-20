@@ -1,0 +1,3 @@
+# tinyFtpd
+**This is a tiny FTP server that imitate  a teacher named Mr Jiang's work**
+##a lot to do.........
