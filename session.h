@@ -10,7 +10,7 @@ typedef struct session
 	char arg[MAX_ARG];
 	//process communicate
 	int parent_fd;//父子进程通信的sockfd
-	int child_fd
+	int child_fd;
 } session_t;
 void start_session(session_t *sess);
 

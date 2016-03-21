@@ -26,7 +26,9 @@ void handle_child(session_t* sess)
 		printf("cmdline = [%s]\n",sess->cmdline);
 		str_split(sess->cmdline, sess->cmd, sess->arg,' ');
 		printf("cmd = [%s]  arg = [%s]\n",sess->cmd,sess->arg);
-		//解析FTP命令与参数
+		//解析处理FTP命令与参数
+		//命令转化为大写
+		str_upper(ses->cmd);
 		
 	}
 }

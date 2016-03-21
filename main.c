@@ -4,6 +4,11 @@
 
 int
 main(){
+
+	char* s = "0123";
+	int rst = str_octal_to_uint(s);
+	printf("rst : %d\n",rst);
+	return 0;
 	if( getuid()!=0 )
 	{
 		fprintf(stderr,"tinyFtpd : must be start as root user\n");

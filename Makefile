@@ -2,7 +2,7 @@
 CC = gcc
 CFLAGS = -Wall -g 
 BIN = tinyFtpd
-OBJS = main.o sysutil.o session.o ftpproto.o nobody.o
+OBJS = main.o sysutil.o session.o ftpproto.o nobody.o str.o
 $(BIN):$(OBJS)
 	$(CC) $(CFLAGS) $^ -o $@
 %.o:%.c
