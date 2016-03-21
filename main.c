@@ -16,7 +16,7 @@ main(){
 		"","","",
 		//process communicate
 		-1,-1
-	}
+	};
 	int listenfd = tcp_server(NULL,5188);
 	//declare connect fd
 	int conn;

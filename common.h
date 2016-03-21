@@ -9,6 +9,7 @@
 #include<netdb.h>
 #include<fcntl.h>
 #include<arpa/inet.h>
+#include "pwd.h"
 
 #include<stdlib.h>
 #include<string.h>
