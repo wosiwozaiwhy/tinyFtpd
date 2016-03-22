@@ -10,6 +10,10 @@
 #include<fcntl.h>
 #include<arpa/inet.h>
 #include "pwd.h"
+#include "shadow.h"
+#include "crypt.h"
+
+
 
 #include<stdlib.h>
 #include<string.h>

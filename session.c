@@ -3,10 +3,10 @@
 void start_session(session_t *sess){
 	
 	
-	if(setegid(pw->pw_gid) <0 )
-		ERR_EXIT("setegid");
-	if(seteuid(pw->pw_uid) <0)
-		ERR_EXIT("seteuid");
+	//if(setegid(pw->pw_gid) <0 )
+		//ERR_EXIT("setegid");
+	//if(seteuid(pw->pw_uid) <0)
+		//ERR_EXIT("seteuid");
 	int sockFd[2];//nobody和服务进程通信的socketPair
 	if(socketpair(PF_UNIX,SOCK_STREAM,0,sockFd) < 0 )
 		ERR_EXIT("socketair");
@@ -27,6 +27,13 @@ void start_session(session_t *sess){
 	}
 	else
 	{
+		struct passwd* pw = getpwnam("nobody");
+		if(pw == NULL)
+			return;
+		if(setegid(pw->pw_gid) < 0)
+			ERR_EXIT("setegid");
+		if(seteuid(pw->pw_gid) < 0)
+			ERR_EXIT("seteuid");
 		//父进程
 		//nobody进程
 		close(sockFd[1]);  //父进程使用sockFd[0]与子进程通信
