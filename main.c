@@ -1,14 +1,25 @@
 #include "common.h"
 #include "sysutil.h"
 #include "session.h"
-
+#include "tunable.h"
+#include "parseconf.h"
 int
 main(){
+/*
+	parseconf_load_file(TINYFTPD_CONF);
+	printf("pasv_enable = %d\n",tunable_pasv_enable);
+	printf("port_enable = %d\n",tunable_port_enable);
+	printf("listen port = %d\n",tunable_listen_port);
+	printf("tunable_max_clients = %d\n",tunable_max_clients);
+	printf("tunable_max_per_ip = %d\n",tunable_max_per_ip);
+	printf("tunable_accept_timeout = %d\n",tunable_accept_timeout);
+	printf("tunable_connect_timeout = %d\n",tunable_connect_timeout);
+	printf("tunable_local_umask = %d\n",tunable_local_umask);
+	printf("tunable_upload_max_rate = %d\n",tunable_upload_max_rate);
+	printf("tunable_listen_address = %s\n",tunable_listen_address);
 
-	char* s = "0123";
-	int rst = str_octal_to_uint(s);
-	printf("rst : %d\n",rst);
 	return 0;
+*/
 	if( getuid()!=0 )
 	{
 		fprintf(stderr,"tinyFtpd : must be start as root user\n");
