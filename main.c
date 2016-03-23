@@ -34,7 +34,7 @@ main(){
 		0,-1,
 		"","","",
 		//数据连接参数
-		NULL,-1,
+		NULL,-1,-1,
 		//process communicate
 		-1,-1,
 		//是否ascii模式

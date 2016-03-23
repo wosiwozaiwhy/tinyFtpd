@@ -4,6 +4,10 @@
 #include "ftpcodes.h"
 #include "tunable.h"
 
+//判断是否PORT or PASV模式已开启
+int port_active(session_t* sess);
+int pasv_active(session_t* sess);
+
 //创建数据连接套接字，返回0失败 1成功
 int get_transfer_fd(session_t* sess);
 //列出当前目录
@@ -168,20 +172,38 @@ void handle_child(session_t* sess)
 
 int port_active(session_t* sess)
 {
-	printf("----------");
+	//printf("----------");
 	if(sess->port_addr!= NULL)
+	{
+		if(pasv_active(sess))
+		{
+			fprintf(stderr,"both port and pasv are active!\r\n");
+			exit(EXIT_FAILURE);
+		}
 		return 1;
+	}
+		
 	return 0;
-}
+} 
 int pasv_active(session_t* sess)
 {
-	
+	if(sess->listen_fd != -1)
+	{
+		if(port_active(sess))
+		{
+			fprintf(stderr,"both port and pasv are active!\r\n");
+			exit(EXIT_FAILURE);
+		}
+		return 1;
+	}
+	return 0;
 }
 int get_transfer_fd(session_t* sess)
 {
-	//检测是否收到PORT或者PASV
+	//PORT或者PASV都没收到
 	if(!port_active(sess) && !pasv_active(sess))
 	{
+		ftp_reply(sess,FTP_BADSENDCONN,"USE PORT or PASV first");
 		return 0;
 	}
 	//主动模式
@@ -197,7 +219,17 @@ int get_transfer_fd(session_t* sess)
 		}
 		sess->data_fd = fd;
 	}
-	
+	if(pasv_active(sess))
+	{
+		int fd = accept_timeout(sess->listen_fd,NULL,tunable_accept_timeout);
+		close(sess->listen_fd);
+		//接收失败
+		if( fd == -1)
+		{
+			return 0;
+		}
+		sess->data_fd = fd;
+	}
 	if(sess->port_addr)
 	{
 		free(sess->port_addr);
@@ -433,7 +465,29 @@ static void do_port(session_t *sess)
 
 }
 static void do_pasv(session_t *sess)
-{}
+{
+	//227 Entering Passive Mode (192,168,44,128,139,222).
+	char ip[16] = {0};
+	getlocalip(ip);
+	sess->listen_fd= tcp_server(ip,0);
+	
+	struct sockaddr_in addr;
+	socklen_t addrlen = sizeof(addr);
+	//获取本地sockfd信息
+	if(getsockname(sess->listen_fd,(struct sockaddr*)&addr,&addrlen) < 0)
+	{
+		ERR_EXIT("getsockname");
+	}
+	//响应PASV发送的port和ip均为主机字节序
+	unsigned short port = ntohs(addr.sin_port);
+	unsigned int v[4];
+	sscanf(ip,"%u.%u.%u.%u",&v[0],&v[1],&v[2],&v[3]);
+	char text[1024] = {0};
+	sprintf(text,"Entering Passive Mode (%u,%u,%u,%u,%u,%u).",v[0],v[1],v[2],v[3],port>>8,port&0xFF);
+	
+	ftp_reply(sess,FTP_PASVOK,text);
+	
+}
 static void do_type(session_t *sess)
 {
 	if(strcmp(sess->arg,"A") ==0 )
@@ -474,6 +528,7 @@ static void do_list(session_t *sess)
 	if( list_common(sess) ==0)
 		return;
 	close(sess->data_fd);
+	sess->data_fd = -1;
 	ftp_reply(sess,FTP_TRANSFEROK,"Directory send OK.");
 }
 static void do_nlst(session_t *sess)

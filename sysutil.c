@@ -72,6 +72,10 @@ int tcp_server(const char *host, unsigned short port)
 }
 
 /*需要修改 /etc/hosts-- 要不就换一种编程方式*/
+/*
+/etc/hosts中设置多种host
+/etc/sysconfig/network中指定使用哪个host，以解决getlocalip返回127.0.0.1
+*/
 int getlocalip(char *ip)
 {
 	char host[100] = {0};
