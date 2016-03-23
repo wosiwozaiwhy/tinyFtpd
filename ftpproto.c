@@ -3,11 +3,15 @@
 #include "str.h"
 #include "ftpcodes.h"
 #include "tunable.h"
+#include "privsock.h"
+
 
 //判断是否PORT or PASV模式已开启
 int port_active(session_t* sess);
 int pasv_active(session_t* sess);
 
+int get_port_fd(session_t* sess);
+int get_pasv_fd(session_t* sess);
 //创建数据连接套接字，返回0失败 1成功
 int get_transfer_fd(session_t* sess);
 //列出当前目录
@@ -16,12 +20,10 @@ int list_common(session_t* sess);
 void ftp_reply(session_t* sess,int status,const char* text);
 //用来根据对应代码status 构造带-符号的响应文本内容
 void ftp_lreply(session_t* sess,int status,const char* text);
-static void do_user(session_t* sess);
-static void do_pass(session_t* sess);
 
 
-static void do_user(session_t *sess);
-static void do_pass(session_t *sess);
+//static void do_user(session_t *sess);
+//static void do_pass(session_t *sess);
 static void do_cwd(session_t *sess);
 static void do_cdup(session_t *sess);
 static void do_quit(session_t *sess);
@@ -169,7 +171,35 @@ void handle_child(session_t* sess)
 		}
 	}
 }
+//向nobody发送GET_DATA_SOCK请求  client端口号  IP地址
+//成功返回1  失败返回0
+int get_port_fd(session_t* sess)
+{
+		priv_sock_send_cmd(sess->child_fd,PRIV_SOCK_GET_DATA_SOCK);
+		unsigned short port = ntohs(sess->port_addr->sin_port);
+		char* ip = inet_ntoa(sess->port_addr->sin_addr);
+		priv_sock_send_int(sess->child_fd, (int)port);
+		priv_sock_send_buf(sess->child_fd, ip, strlen(ip));
+		
+		//获取应答
+		char res = priv_sock_get_result(sess->child_fd);
+		if(res == PRIV_SOCK_RESULT_BAD )
+		{
+			return 0;
+		}
+		else if(res == PRIV_SOCK_RESULT_OK)
+		{
+			sess->data_fd = priv_sock_recv_fd(sess->child_fd);
+			return 1;
+		}
+		return 1;
+}
 
+int get_pasv_fd(session_t* sess)
+{
+	
+	
+}
 int port_active(session_t* sess)
 {
 	//printf("----------");
@@ -206,18 +236,22 @@ int get_transfer_fd(session_t* sess)
 		ftp_reply(sess,FTP_BADSENDCONN,"USE PORT or PASV first");
 		return 0;
 	}
+	int ret =1;
 	//主动模式
 	if(port_active(sess))
-	{
+	{	
+		//失败则返回0
+		if( get_port_fd(sess) == 0 )
+			ret =0;
 		
-		//should be 20
+		/* 
 		int fd = tcp_client(0);
 		if(connect_timeout(fd,sess->port_addr,tunable_connect_timeout)<0)
 		{
 			close(fd);
 			return 0;
 		}
-		sess->data_fd = fd;
+		sess->data_fd = fd; */
 	}
 	if(pasv_active(sess))
 	{
@@ -235,7 +269,7 @@ int get_transfer_fd(session_t* sess)
 		free(sess->port_addr);
 		sess->port_addr = NULL;
 	}
-	return 1;
+	return ret;
 }
 //LIST 的响应函数
 int list_common(session_t* sess)
@@ -445,7 +479,9 @@ static void do_quit(session_t *sess)
 {}
 static void do_port(session_t *sess)
 {
-	 
+	 /*
+	 接收IP和端口号，解析出来，放入会话结构
+	 */
 	 unsigned int tmp[6];
 	 //arg 192,168,44,1,9,159格式化放入tmp中，ip和端口号
 	 sscanf(sess->arg,"%u,%u,%u,%u,%u,%u,",&tmp[2],&tmp[3],&tmp[4],&tmp[5],&tmp[0],&tmp[1]);
@@ -498,7 +534,7 @@ static void do_type(session_t *sess)
 	else if(strcmp(sess->arg,"I") ==0 )
 	{
 		sess->is_ascii = 0;
-		ftp_reply(sess,FTP_TYPEOK,"Switching to ASCII mode.");
+		ftp_reply(sess,FTP_TYPEOK,"Switching to Binary mode.");
 	}
 	else
 	{

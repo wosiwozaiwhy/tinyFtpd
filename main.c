@@ -40,6 +40,7 @@ main(){
 		//是否ascii模式
 		0
 	};
+	signal(SIGCHLD,SIG_IGN);
 	int listenfd = tcp_server(NULL,5188);
 	//declare connect fd
 	int conn;
