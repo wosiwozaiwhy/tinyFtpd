@@ -2,9 +2,10 @@
 CC = gcc
 CFLAGS = -Wall -g 
 BIN = tinyFtpd
-OBJS = main.o sysutil.o session.o ftpproto.o nobody.o str.o
+OBJS = main.o sysutil.o session.o ftpproto.o nobody.o str.o tunable.o parseconf.o
+LIBS=-lcrypt
 $(BIN):$(OBJS)
-	$(CC) $(CFLAGS) $^ -o $@
+	$(CC) $(CFLAGS) $^ -o $@ $(LIBS)
 %.o:%.c
 	$(CC) $(CFLAGS)  -c $< -o $@
 clean:

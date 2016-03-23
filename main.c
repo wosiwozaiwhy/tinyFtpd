@@ -3,8 +3,11 @@
 #include "session.h"
 #include "tunable.h"
 #include "parseconf.h"
+#include "ftpcodes.h"
+
 int
 main(){
+	
 /*
 	parseconf_load_file(TINYFTPD_CONF);
 	printf("pasv_enable = %d\n",tunable_pasv_enable);

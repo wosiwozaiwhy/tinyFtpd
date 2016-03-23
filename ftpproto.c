@@ -162,6 +162,7 @@ void handle_child(session_t* sess)
 		}
 	}
 }
+//LIST 的响应函数
 int list_common()
 {
 	DIR* dir = opendir(".");
@@ -247,25 +248,49 @@ int list_common()
 		//特殊权限，如uid
 		if(mode & S_ISUID)
 		{
-			perms[3] = (perms[3]=='x')?'s','S';
+			perms[3] = (perms[3]=='x')?'s':'S';
 		}
 		if(mode & S_ISGID)
 		{
-			perms[6] = (perms[6]=='x')?'s','S';
+			perms[6] = (perms[6]=='x')?'s':'S';
 		}
-		if(mode & S_ISUTX)
+		if(mode & S_ISVTX)
 		{
-			perms[9] = (perms[9]=='x')?'s','S';
+			perms[9] = (perms[9]=='x')?'s':'S';
 		}
 		
 		//打印结果到buf中
 		char buf[1024] = {0};
 		//@off 当前串长度
 		int off =0;
-		off = sprintf(buf,"%s ",perms);//文件类型和权限位
-		sprintf(off + buf,"%3d %-8d %-8d",sbuf->st_nlink,st_uid,st_gid);//链接数 uid gid
+		off += sprintf(buf,"%s ",perms);//文件类型和权限位放入buf
+		off +=sprintf(off + buf,"%3d %-8d %-8d",sbuf.st_nlink,sbuf.st_uid,sbuf.st_gid);//链接数 uid gid放入buf
+		off +=sprintf(off + buf,"%8lu ",sbuf.st_size);//文件大小放入buf
+		
+		/* 获取时间到buf中
+		对于修改时间，上次修改时间距离现在半年以上的显示年份，否则显示具体24小时制时间 */
+		char* p_date_format = "%b %e %H:%M";//时间格式
+		//取当前时间
+		struct timeval tv;
+		gettimeofday(&tv,NULL);
+		
+		time_t local_time = tv.tv_sec;
+		if(sbuf.st_mtime > local_time || (local_time-sbuf.st_mtime)>182*24*3600)
+		{
+			//man strftime
+			p_date_format = "%b %e %Y";
+		}
+		
+		char datebuf[64] ={0};
+		struct tm* p_tm = localtime(&local_time);
+		strftime(datebuf,sizeof(datebuf),p_date_format,p_tm);
+		
+		off +=sprintf(off + buf,"%s ",datebuf);//格式化时间放入buf
+		off +=sprintf(off + buf,"%s\r\n",dt->d_name);//文件名放入buf
+		printf("%s",buf);
 	}
-	
+	closedir(dir);
+	return 1;
 }
 void ftp_reply(session_t* sess,int status,const char* text)
 {
