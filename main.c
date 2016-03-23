@@ -33,8 +33,12 @@ main(){
 		//control connection
 		0,-1,
 		"","","",
+		//数据连接参数
+		NULL,-1,
 		//process communicate
-		-1,-1,0
+		-1,-1,
+		//是否ascii模式
+		0
 	};
 	int listenfd = tcp_server(NULL,5188);
 	//declare connect fd

@@ -5,7 +5,7 @@ int tcp_client(unsigned short port)
 	int sock;
 	if ((sock = socket(PF_INET, SOCK_STREAM, 0)) < 0)
 		ERR_EXIT("tcp_client");
-
+	//port=0则不绑定了
 	if (port > 0)
 	{
 		int on = 1;

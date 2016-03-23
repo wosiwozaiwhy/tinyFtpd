@@ -2,9 +2,12 @@
 #include "sysutil.h"
 #include "str.h"
 #include "ftpcodes.h"
+#include "tunable.h"
 
+//创建数据连接套接字，返回0失败 1成功
+int get_transfer_fd(session_t* sess);
 //列出当前目录
-int list_common();
+int list_common(session_t* sess);
 //用来根据对应代码status 构造响应文本内容
 void ftp_reply(session_t* sess,int status,const char* text);
 //用来根据对应代码status 构造带-符号的响应文本内容
@@ -162,8 +165,48 @@ void handle_child(session_t* sess)
 		}
 	}
 }
+
+int port_active(session_t* sess)
+{
+	printf("----------");
+	if(sess->port_addr!= NULL)
+		return 1;
+	return 0;
+}
+int pasv_active(session_t* sess)
+{
+	
+}
+int get_transfer_fd(session_t* sess)
+{
+	//检测是否收到PORT或者PASV
+	if(!port_active(sess) && !pasv_active(sess))
+	{
+		return 0;
+	}
+	//主动模式
+	if(port_active(sess))
+	{
+		
+		//should be 20
+		int fd = tcp_client(0);
+		if(connect_timeout(fd,sess->port_addr,tunable_connect_timeout)<0)
+		{
+			close(fd);
+			return 0;
+		}
+		sess->data_fd = fd;
+	}
+	
+	if(sess->port_addr)
+	{
+		free(sess->port_addr);
+		sess->port_addr = NULL;
+	}
+	return 1;
+}
 //LIST 的响应函数
-int list_common()
+int list_common(session_t* sess)
 {
 	DIR* dir = opendir(".");
 	if(dir ==NULL)
@@ -178,6 +221,9 @@ int list_common()
 		{
 			continue;
 		}
+		//过滤隐藏文件：开头.号的
+		if(dt->d_name[0] == '.')
+			continue;
 		char perms[] = "----------";
 		perms[0] = '?';
 		//获取文件类型,权限信息放入perms
@@ -286,8 +332,19 @@ int list_common()
 		strftime(datebuf,sizeof(datebuf),p_date_format,p_tm);
 		
 		off +=sprintf(off + buf,"%s ",datebuf);//格式化时间放入buf
-		off +=sprintf(off + buf,"%s\r\n",dt->d_name);//文件名放入buf
-		printf("%s",buf);
+		
+		//如果是符号链接文件要给出指向
+		if(S_ISLNK(sbuf.st_mode))
+		{
+			char tmp[1024] = {0};
+			readlink(dt->d_name,tmp,sizeof(tmp));
+			off +=sprintf(off + buf,"%s -> %s\r\n",dt->d_name,tmp);//符号链接文件名->链接指向
+		}
+		else
+		{
+			off +=sprintf(off + buf,"%s\r\n",dt->d_name);//文件名放入buf
+		}
+		writen(sess->data_fd,buf,strlen(buf));
 	}
 	closedir(dir);
 	return 1;
@@ -355,7 +412,26 @@ static void do_cdup(session_t *sess)
 static void do_quit(session_t *sess)
 {}
 static void do_port(session_t *sess)
-{}
+{
+	 
+	 unsigned int tmp[6];
+	 //arg 192,168,44,1,9,159格式化放入tmp中，ip和端口号
+	 sscanf(sess->arg,"%u,%u,%u,%u,%u,%u,",&tmp[2],&tmp[3],&tmp[4],&tmp[5],&tmp[0],&tmp[1]);
+	 sess->port_addr = (struct sockaddr_in*)malloc(sizeof(struct sockaddr_in));
+	 memset(sess->port_addr,0,sizeof(struct sockaddr_in));
+	 sess->port_addr->sin_family = AF_INET;
+	 
+	 unsigned char* p = (unsigned char*)&sess->port_addr->sin_port;
+	 p[0] = tmp[0];
+	 p[1] = tmp[1];
+	 p = (unsigned char*)&sess->port_addr->sin_addr;
+	 p[0] = tmp[2];
+	 p[1] = tmp[3];
+	 p[2] = tmp[4];
+	 p[3] = tmp[5];
+	 ftp_reply(sess,FTP_PORTOK,"PORT command successful,Consider using PASV");
+
+}
 static void do_pasv(session_t *sess)
 {}
 static void do_type(session_t *sess)
@@ -384,7 +460,22 @@ static void do_stor(session_t *sess)
 static void do_appe(session_t *sess)
 {}
 static void do_list(session_t *sess)
-{}
+{
+	//创建数据连接
+	//响应150 FTP_DATACONN
+	//传输文件列表
+	//关闭数据套接字
+	//响应226 FTP_TRANSFEROK
+	if( (get_transfer_fd(sess)) == 0)
+	{
+		return;
+	}
+	ftp_reply(sess,FTP_DATACONN,"Here comes the directory listing.");
+	if( list_common(sess) ==0)
+		return;
+	close(sess->data_fd);
+	ftp_reply(sess,FTP_TRANSFEROK,"Directory send OK.");
+}
 static void do_nlst(session_t *sess)
 {}
 static void do_rest(session_t *sess)
