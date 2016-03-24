@@ -4,9 +4,16 @@
 #include "tunable.h"
 #include "common.h"
 
-
+//消除capset的警告,因头文件未暴露这个接口，而capset又是系统调用。
+int capset(cap_user_header_t hdrp, const cap_user_data_t datap)
+{
+	return syscall(__NR_capset,hdrp,datap);
+}
+//收取FTP发过来的端口 IP 主动模式进行，bind21端口，连接client IP
 static void privop_pasv_get_data_sock(session_t *sess);
+//响应ftp 被动模式是否激活的请求
 static void privop_pasv_active(session_t *sess);
+//响应ftp 被动模式监听是否开启的请求
 static void privop_pasv_listen(session_t *sess);
 static void privop_pasv_accept(session_t *sess);
 //设置此进程pid和特权
@@ -50,11 +57,7 @@ void set_privilege(void)
 	
 	capset(&cap_header,&cap_data);
 }
-//消除capset的警告,因头文件未暴露这个接口，而capset又是系统调用。
-int capset(cap_user_header_t hdrp, const cap_user_data_t datap)
-{
-	return syscall(__NR_capset,hdrp,datap);
-}
+
 
 void handle_parent(session_t* sess)
 {
@@ -121,10 +124,49 @@ static void privop_pasv_get_data_sock(session_t *sess)
 }
 static void privop_pasv_active(session_t *sess)
 {
+	int active = 0;
+	if(sess->listen_fd != -1)
+	{
+		active = 1;
+	}
+	priv_sock_send_int(sess->parent_fd,active);	
 }
 static void privop_pasv_listen(session_t *sess)
 {
+	char ip[16] = {0};
+	getlocalip(ip);
+	sess->listen_fd= tcp_server(ip,0);
+	
+	struct sockaddr_in addr;
+	socklen_t addrlen = sizeof(addr);
+	//获取本地sockfd信息
+	if(getsockname(sess->listen_fd,(struct sockaddr*)&addr,&addrlen) < 0)
+	{
+		ERR_EXIT("getsockname");
+	}
+	//响应PASV发送的port和ip均为主机字节序
+	unsigned short port = ntohs(addr.sin_port);
+	
+	//port发送给ftp进程
+	priv_sock_send_int(sess->parent_fd,port);
+	
 }
 static void privop_pasv_accept(session_t *sess)
 {
+	
+	int fd = accept_timeout(sess->listen_fd,NULL,tunable_accept_timeout);
+	close(sess->listen_fd);
+	//接收失败
+	if( fd == -1)
+	{	
+		priv_sock_send_result(sess->parent_fd, PRIV_SOCK_RESULT_BAD);
+		return;
+	}
+	else 
+	{
+		priv_sock_send_result(sess->parent_fd, PRIV_SOCK_RESULT_OK);
+		priv_sock_send_fd(sess->parent_fd,fd);
+		close(fd);
+	}
+	
 }

@@ -22,8 +22,8 @@ void ftp_reply(session_t* sess,int status,const char* text);
 void ftp_lreply(session_t* sess,int status,const char* text);
 
 
-//static void do_user(session_t *sess);
-//static void do_pass(session_t *sess);
+static void do_user(session_t *sess);
+static void do_pass(session_t *sess);
 static void do_cwd(session_t *sess);
 static void do_cdup(session_t *sess);
 static void do_quit(session_t *sess);
@@ -136,15 +136,7 @@ void handle_child(session_t* sess)
 		//命令转化为大写
 		str_upper(sess->cmd);
 		
-		/* if(strcmp("USER",sess->cmd) ==0 )
-		{
-			
-			do_user(sess);
-		}
-		else if(strcmp("PASS",sess->cmd) ==0)
-		{
-			do_pass(sess);
-		} */
+		
 		int i=0;
 		int size = sizeof(ctrl_cmds)/sizeof(ctrl_cmds[0]);
 		while(i<size)
@@ -171,8 +163,10 @@ void handle_child(session_t* sess)
 		}
 	}
 }
+
 //向nobody发送GET_DATA_SOCK请求  client端口号  IP地址
 //成功返回1  失败返回0
+//成功后 修改data_fd
 int get_port_fd(session_t* sess)
 {
 		priv_sock_send_cmd(sess->child_fd,PRIV_SOCK_GET_DATA_SOCK);
@@ -195,9 +189,21 @@ int get_port_fd(session_t* sess)
 		return 1;
 }
 
+//成功后 修改data_fd
 int get_pasv_fd(session_t* sess)
 {
-	
+	priv_sock_send_cmd(sess->child_fd,PRIV_SOCK_PASV_ACCEPT);
+	char res = priv_sock_get_result(sess->child_fd);
+	if(res == PRIV_SOCK_RESULT_BAD)
+	{
+		return 0;
+	}
+	else if(res == PRIV_SOCK_RESULT_OK)
+	{
+		sess->data_fd = priv_sock_recv_fd(sess->child_fd);
+		return 1;
+	}
+	return 1;
 	
 }
 int port_active(session_t* sess)
@@ -212,12 +218,26 @@ int port_active(session_t* sess)
 		}
 		return 1;
 	}
-		
+	
 	return 0;
 } 
 int pasv_active(session_t* sess)
 {
-	if(sess->listen_fd != -1)
+	//向nobody请求是否处于被动模式
+	//是1 否0
+	/* printf("----------");
+	 if(sess->listen_fd != -1)
+	{
+		if(port_active(sess))
+		{
+			fprintf(stderr,"both port and pasv are active!\r\n");
+			exit(EXIT_FAILURE);
+		}
+		return 1;
+	} */
+	priv_sock_send_cmd(sess->child_fd,PRIV_SOCK_PASV_ACTIVE);	
+	int active = priv_sock_get_int(sess->child_fd);
+	if(active)
 	{
 		if(port_active(sess))
 		{
@@ -226,7 +246,7 @@ int pasv_active(session_t* sess)
 		}
 		return 1;
 	}
-	return 0;
+	return 0; 
 }
 int get_transfer_fd(session_t* sess)
 {
@@ -244,25 +264,21 @@ int get_transfer_fd(session_t* sess)
 		if( get_port_fd(sess) == 0 )
 			ret =0;
 		
-		/* 
-		int fd = tcp_client(0);
-		if(connect_timeout(fd,sess->port_addr,tunable_connect_timeout)<0)
-		{
-			close(fd);
-			return 0;
-		}
-		sess->data_fd = fd; */
+		
 	}
 	if(pasv_active(sess))
 	{
-		int fd = accept_timeout(sess->listen_fd,NULL,tunable_accept_timeout);
+		/* int fd = accept_timeout(sess->listen_fd,NULL,tunable_accept_timeout);
 		close(sess->listen_fd);
 		//接收失败
 		if( fd == -1)
 		{
 			return 0;
 		}
-		sess->data_fd = fd;
+		sess->data_fd = fd; */
+		//失败则返回0
+		if( get_pasv_fd(sess) == 0 )
+			ret =0;
 	}
 	if(sess->port_addr)
 	{
@@ -376,7 +392,7 @@ int list_common(session_t* sess)
 		//@off 当前串长度
 		int off =0;
 		off += sprintf(buf,"%s ",perms);//文件类型和权限位放入buf
-		off +=sprintf(off + buf,"%3d %-8d %-8d",sbuf.st_nlink,sbuf.st_uid,sbuf.st_gid);//链接数 uid gid放入buf
+		off +=sprintf(off + buf,"%3lu %-8d %-8d",sbuf.st_nlink,sbuf.st_uid,sbuf.st_gid);//链接数 uid gid放入buf
 		off +=sprintf(off + buf,"%8lu ",sbuf.st_size);//文件大小放入buf
 		
 		/* 获取时间到buf中
@@ -502,23 +518,17 @@ static void do_port(session_t *sess)
 }
 static void do_pasv(session_t *sess)
 {
-	//227 Entering Passive Mode (192,168,44,128,139,222).
+	
+	//接收到PASV命令，发送命令给nobody，让其创建监听套接字,获取监听端口号
+	priv_sock_send_cmd(sess->child_fd,PRIV_SOCK_PASV_LISTEN);
+	unsigned int port = priv_sock_get_int(sess->child_fd);
+	
 	char ip[16] = {0};
 	getlocalip(ip);
-	sess->listen_fd= tcp_server(ip,0);
-	
-	struct sockaddr_in addr;
-	socklen_t addrlen = sizeof(addr);
-	//获取本地sockfd信息
-	if(getsockname(sess->listen_fd,(struct sockaddr*)&addr,&addrlen) < 0)
-	{
-		ERR_EXIT("getsockname");
-	}
-	//响应PASV发送的port和ip均为主机字节序
-	unsigned short port = ntohs(addr.sin_port);
 	unsigned int v[4];
 	sscanf(ip,"%u.%u.%u.%u",&v[0],&v[1],&v[2],&v[3]);
 	char text[1024] = {0};
+	//227 Entering Passive Mode (192,168,44,128,139,222).
 	sprintf(text,"Entering Passive Mode (%u,%u,%u,%u,%u,%u).",v[0],v[1],v[2],v[3],port>>8,port&0xFF);
 	
 	ftp_reply(sess,FTP_PASVOK,text);
