@@ -4,7 +4,7 @@
 #include "ftpcodes.h"
 #include "tunable.h"
 #include "privsock.h"
-
+//#include "common.h"
 
 //判断是否PORT or PASV模式已开启
 int port_active(session_t* sess);
@@ -14,8 +14,10 @@ int get_port_fd(session_t* sess);
 int get_pasv_fd(session_t* sess);
 //创建数据连接套接字，返回0失败 1成功
 int get_transfer_fd(session_t* sess);
-//列出当前目录,参数0:短清单  1详细清单
+//传输当前目录,参数0:短清单  1详细清单
 int list_common(session_t* sess,int detail);
+//上传
+void upload_common(session_t* sess,int is_append);
 //用来根据对应代码status 构造响应文本内容
 void ftp_reply(session_t* sess,int status,const char* text);
 //用来根据对应代码status 构造带-符号的响应文本内容
@@ -256,6 +258,7 @@ int pasv_active(session_t* sess)
 }
 int get_transfer_fd(session_t* sess)
 {
+	//printf("begin transfer\n");
 	//PORT或者PASV都没收到
 	if(!port_active(sess) && !pasv_active(sess))
 	{
@@ -353,6 +356,126 @@ int list_common(session_t* sess,int detail)
 	}
 	closedir(dir);
 	return 1;
+}
+
+void upload_common(session_t* sess,int is_append)
+{
+	printf("begin upload\n");
+	//获取断点信息
+	long long offset = sess->restart_pos;
+	sess->restart_pos = 0;
+	 
+	//打开文件
+	int fd  = open(sess->arg,O_CREAT | O_WRONLY,0666);
+	if(fd ==-1)
+	{
+		ftp_reply(sess,FTP_UPLOADFAIL,"Could not create file.");
+		return;
+	}
+	//文件打开成功，写入之前给文件加写锁
+	int ret;
+	ret = lock_file_write(fd);
+	if(ret == -1)
+	{
+		ftp_reply(sess,FTP_UPLOADFAIL,"Could not lock file.");
+		return;
+	}
+	
+	//直接STOR指令
+	if(!is_append && offset==0)
+	{
+		ftruncate(fd,0);//文件清零
+		ret = lseek(fd,0,SEEK_SET);
+	}
+	// REST + STOR模式
+	else if(!is_append && offset!=0)
+	{
+		ret = lseek(fd,offset,SEEK_SET);
+	}
+	//append模式
+	else
+	{
+		ret = lseek(fd,0,SEEK_END);
+	}
+	
+	
+	if(ret < 0)
+	{
+		ftp_reply(sess,FTP_UPLOADFAIL,"Could not seek file.");
+		return;
+	}
+	
+	char text[1024] = {0};
+	
+	struct stat sbuf;
+	ret = fstat(fd,&sbuf);
+	if(!S_ISREG(sbuf.st_mode) )
+	{
+		ftp_reply(sess,FTP_UPLOADFAIL,"Uploaded not common file.");
+		return;
+	}
+	if(sess->is_ascii)
+	{ //ASCII模式
+		sprintf(text,"Opening ASCII mode data connection for %s (%6ld bytes).",sess->arg,sbuf.st_size);
+	}
+	else
+	{  //Binary模式
+		sprintf(text,"Opening BINARY mode data connection for %s (%6ld bytes).",sess->arg,sbuf.st_size);
+	} 
+	//150应答
+	ftp_reply(sess,FTP_DATACONN,text);
+	//上传文件
+	int flag =1;
+	char buf[1024] = {0};
+	while(1)
+	{
+		ret = read(sess->data_fd,buf,sizeof(buf));
+		if(ret == -1)
+		{
+			if(errno == EINTR)
+			{
+				continue;
+			}
+			else
+			{
+				//读取出错
+				flag = 2;
+				break;
+			}
+				
+		}
+		else if(ret ==0 )
+		{
+			//读取成功
+			flag = 0;
+			break;
+		}
+		if( writen(fd,buf,ret)!=ret )
+		{
+			flag = 1;
+			break;
+		}
+	}
+	
+	//解锁fd
+	unlock_file(fd);
+	
+	//关闭数据套接字和文件fd
+	close(fd);
+	close(sess->data_fd);
+	sess->data_fd = -1;
+	if(flag == 0)
+	{	//226
+		ftp_reply(sess,FTP_TRANSFEROK,"Transfer complete.");
+	}
+	else if(flag == 1)
+	{	//451  
+		ftp_reply(sess,FTP_BADSENDFILE,"Failure writing into local file.");
+	}
+	else if(flag == 2)
+	{	//426 
+		ftp_reply(sess,FTP_BADSENDNET,"Failure reading from network stream.");
+	}
 }
 void ftp_reply(session_t* sess,int status,const char* text)
 {
@@ -561,37 +684,38 @@ static void do_retr(session_t *sess)
 	ftp_reply(sess,FTP_DATACONN,text);
 	//发送文件
 	int flag =1;
-	char buf[4096] = {0};
-	while(1)
+	
+	//使用sendfile发送文件 零拷贝
+	long long bytes_to_send = sbuf.st_size;
+	if(offset > bytes_to_send)
 	{
-		ret = read(fd,buf,sizeof(4096));
+		bytes_to_send = 0;
+	}
+	else
+	{
+		bytes_to_send -= offset;
+	}
+	while(bytes_to_send)
+	{	//	因上面已经定位了断点位置，所以第三个参数设置为NULL
+		int bytes_this_time = bytes_to_send >4096?4096:bytes_to_send;
+		ret = sendfile(sess->data_fd, fd, NULL, bytes_this_time);
 		if(ret == -1)
 		{
-			if(errno == EINTR)
-			{
-				continue;
-			}
-			else
-			{
-				//读取出错
-				flag = 1;
-				break;
-			}
-				
-		}
-		else if(ret ==0 )
-		{
-			//读取成功
-			flag = 0;
+			flag =2;
 			break;
 		}
-		if( writen(sess->data_fd,buf,ret)!=ret )
-		{
-			flag = 2;
-			break;
-		}
+		
+		bytes_this_time -=ret;
+		
 	}
-	//关闭数据套接字
+	if(bytes_to_send == 0)
+	{
+		flag = 0;
+	}
+	//解锁fd
+	unlock_file(fd);
+	//关闭数据套接字和文件fd
+	close(fd);
 	close(sess->data_fd);
 	sess->data_fd = -1;
 	if(flag == 0)
@@ -609,9 +733,18 @@ static void do_retr(session_t *sess)
 	
 }
 static void do_stor(session_t *sess)
-{}
+{
+	if( (get_transfer_fd(sess)) == 0)
+	{
+		return;
+	}
+	//printf("start to upload_common\n");
+	upload_common(sess,0);
+}
 static void do_appe(session_t *sess)
-{}
+{
+	upload_common(sess,1);
+}
 static void do_list(session_t *sess)
 {
 	//创建数据连接
@@ -759,17 +892,15 @@ static void do_feat(session_t *sess)
 {
 	
 	ftp_lreply(sess,FTP_FEAT,"Features:");
-	writen(sess->conn_fd," EPRT\r\n",sizeof(" EPRT\r\n"));
-	writen(sess->conn_fd," EPSV\r\n",sizeof(" EPSV\r\n"));
-	writen(sess->conn_fd," MDTW\r\n",sizeof(" MDTW\r\n"));
-	writen(sess->conn_fd," PASV\r\n",sizeof( " PASV\r\n"));
-	writen(sess->conn_fd," REST_STREAM\r\n",sizeof(" REST_STREAM\r\n"));
-	writen(sess->conn_fd," SIZE\r\n",sizeof(" SIZE\r\n"));
-	writen(sess->conn_fd," TVFS\r\n",sizeof(" TVFS\r\n"));
-	writen(sess->conn_fd," UTF8\r\n",sizeof(" UTF8\r\n"));
-	writen(sess->conn_fd," EPRT\r\n",sizeof(" EPRT\r\n"));
-	writen(sess->conn_fd," EPRT\r\n",sizeof(" EPRT\r\n"));
-	ftp_reply(sess,FTP_FEAT,"End\r\n"); 
+	writen(sess->conn_fd, " EPRT\r\n", strlen(" EPRT\r\n"));
+	writen(sess->conn_fd, " EPSV\r\n", strlen(" EPSV\r\n"));
+	writen(sess->conn_fd, " MDTM\r\n", strlen(" MDTM\r\n"));
+	writen(sess->conn_fd, " PASV\r\n", strlen(" PASV\r\n"));
+	writen(sess->conn_fd, " REST STREAM\r\n", strlen(" REST STREAM\r\n"));
+	writen(sess->conn_fd, " SIZE\r\n", strlen(" SIZE\r\n"));
+	writen(sess->conn_fd, " TVFS\r\n", strlen(" TVFS\r\n"));
+	writen(sess->conn_fd, " UTF8\r\n", strlen(" UTF8\r\n"));
+	ftp_reply(sess,FTP_FEAT,"End"); 
 }
 static void do_size(session_t *sess)
 {
