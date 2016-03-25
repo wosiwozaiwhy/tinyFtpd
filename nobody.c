@@ -17,7 +17,44 @@ static void privop_pasv_active(session_t *sess);
 static void privop_pasv_listen(session_t *sess);
 static void privop_pasv_accept(session_t *sess);
 //设置此进程pid和特权
-void set_privilege(void)
+void set_privilege(void);
+
+
+void handle_parent(session_t* sess)
+{
+	
+	
+	set_privilege();
+
+	char cmd;
+	while(1)
+	{
+		//从子进程接收命令
+		cmd = priv_sock_get_cmd(sess->parent_fd);
+		//解析内部命令，处理
+		switch(cmd)
+		{
+		//ftp进程发出PORT模式的指令
+		case PRIV_SOCK_GET_DATA_SOCK :
+			privop_pasv_get_data_sock(sess);
+			break;
+		case PRIV_SOCK_PASV_ACTIVE :
+			privop_pasv_active(sess);
+			break;
+		case PRIV_SOCK_PASV_LISTEN :
+			privop_pasv_listen(sess);
+			break;
+		case PRIV_SOCK_PASV_ACCEPT :
+			privop_pasv_accept(sess);
+			break;
+		
+		}
+	
+	}
+}
+
+//设置此进程pid和特权
+void set_privilege()
 {
 //修改父进程为nobody进程
 	struct passwd* pw = getpwnam("nobody");
@@ -58,46 +95,12 @@ void set_privilege(void)
 	capset(&cap_header,&cap_data);
 }
 
-
-void handle_parent(session_t* sess)
-{
-	
-	
-	set_privilege();
-
-	char cmd;
-	while(1)
-	{
-		//从子进程接收命令
-		cmd = priv_sock_get_cmd(sess->parent_fd);
-		//解析内部命令，处理
-		switch(cmd)
-		{
-		//ftp进程发出PORT模式的指令
-		case PRIV_SOCK_GET_DATA_SOCK :
-			privop_pasv_get_data_sock(sess);
-			break;
-		case PRIV_SOCK_PASV_ACTIVE :
-			privop_pasv_active(sess);
-			break;
-		case PRIV_SOCK_PASV_LISTEN :
-			privop_pasv_listen(sess);
-			break;
-		case PRIV_SOCK_PASV_ACCEPT :
-			privop_pasv_accept(sess);
-			break;
-		
-		}
-	
-	}
-}
-
 static void privop_pasv_get_data_sock(session_t *sess)
 {
 	unsigned short port = (unsigned short)priv_sock_get_int(sess->parent_fd);
 	char ip[16] = {0};
 	priv_sock_recv_buf(sess->parent_fd, ip, sizeof(ip));
-	
+	//client 地址addr
 	struct sockaddr_in addr;
 	memset(&addr,0,sizeof(addr));
 	addr.sin_family = AF_INET;

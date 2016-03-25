@@ -21,9 +21,13 @@ typedef struct session
 	int parent_fd;
 	int child_fd;
 	
-	//协议状态
+	/*协议状态*/
 	//是否ascii模式
 	int is_ascii;
+	//断点续传
+	long long restart_pos;
+	//重命名RNFR
+	char* rnfr_name;
 } session_t;
 void start_session(session_t *sess);
 

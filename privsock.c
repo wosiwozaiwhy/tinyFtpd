@@ -63,7 +63,7 @@ char priv_sock_get_cmd(int fd)
 	ret = readn(fd, &res, sizeof(res));
 	if (ret == 0)
 	{
-		printf("ftp process exit\n");
+		printf("ftp process exit---->nobody is goning to exit\n");
 		exit(EXIT_SUCCESS);
 	}
 	if (ret != sizeof(res))

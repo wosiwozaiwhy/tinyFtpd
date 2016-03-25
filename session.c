@@ -13,7 +13,7 @@ void start_session(session_t *sess){
 	/* int sockFd[2];//nobody和服务进程通信的socketPair
 	if(socketpair(PF_UNIX,SOCK_STREAM,0,sockFd) < 0 )
 		ERR_EXIT("socketair"); */
-	 priv_sock_init(sess);
+	priv_sock_init(sess);
 	
 	pid_t pid;
 	pid = fork();

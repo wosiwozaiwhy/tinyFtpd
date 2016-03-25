@@ -74,6 +74,7 @@
 #define FTP_NOHANDLEPROT      536
 #define FTP_FILEFAIL          550
 #define FTP_NOPERM            550
+#define FTP_RENAME_ERROR      550
 #define FTP_UPLOADFAIL        553
 
 

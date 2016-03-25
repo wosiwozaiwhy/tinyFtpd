@@ -10,8 +10,11 @@
 // FTP服务进程向nobody进程请求的命令
 //请求PORT模式的数据连接套接字，告知nobody接收client端口号和IP地址，而后绑定套接字
 #define PRIV_SOCK_GET_DATA_SOCK     1
+//FTP向nobody发送2命令，请求得到是否激活的答复
 #define PRIV_SOCK_PASV_ACTIVE       2
+//FTP接收到PASV，则发送3命令让nobody bind个接口并listen，返回listen port
 #define PRIV_SOCK_PASV_LISTEN       3
+//FTP向nobody发4命令，nobody  accept请求并发回data_fd
 #define PRIV_SOCK_PASV_ACCEPT       4
 
 // nobody进程对FTP服务进程的应答
@@ -27,7 +30,7 @@ void priv_sock_set_child_context(session_t *sess);
 
 //发送一个char命令
 void priv_sock_send_cmd(int fd, char cmd);
-//取得char命令
+//取得一个char命令
 char priv_sock_get_cmd(int fd);
 //发送char应答
 void priv_sock_send_result(int fd, char res);

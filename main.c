@@ -38,7 +38,11 @@ main(){
 		//process communicate
 		-1,-1,
 		//是否ascii模式
-		0
+		0,
+		//断点续传
+		0,
+		//重命名RNFR
+		NULL
 	};
 	signal(SIGCHLD,SIG_IGN);
 	int listenfd = tcp_server(NULL,5188);

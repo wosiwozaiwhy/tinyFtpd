@@ -591,8 +591,12 @@ const char* statbuf_get_perms(struct stat *sbuf)
 	return perms;
 }
 
+/* 获取时间返回
+对于修改时间，上次修改时间距离现在半年以上的显示年份，否则显示具体24小时制时间 */
 const char* statbuf_get_date(struct stat *sbuf)
 {
+	
+	//取当前时间
 	static char datebuf[64] = {0};
 	const char *p_date_format = "%b %e %H:%M";
 	struct timeval tv;
@@ -615,14 +619,15 @@ static int lock_internal(int fd, int lock_type)
 	struct flock the_lock;
 	memset(&the_lock, 0, sizeof(the_lock));
 	the_lock.l_type = lock_type;
-	the_lock.l_whence = SEEK_SET;
+	the_lock.l_whence = SEEK_SET;//加锁位置 = 头部
 	the_lock.l_start = 0;
-	the_lock.l_len = 0;
+	the_lock.l_len = 0;//整个文件加锁
 	do
 	{
+		//F_SETLKW 循环请求一直等待锁，失败返回EINTR
 		ret = fcntl(fd, F_SETLKW, &the_lock);
 	}
-	while (ret < 0 && errno == EINTR);
+	while (ret < 0 && errno == EINTR);//信号中断的话继续
 
 	return ret;
 }
