@@ -499,7 +499,7 @@ static void do_type(session_t *sess)
 //请求文件下载指令 RETR 
 static void do_retr(session_t *sess)
 {
-	/* 响应150 FTP_DATACONN
+	/* 
 	传输下载文件
 	关闭数据套接字
 	响应226 FTP_TRANSFEROK */
@@ -508,6 +508,10 @@ static void do_retr(session_t *sess)
 	{
 		return;
 	}
+	//获取断点信息
+	long long offset = sess->restart_pos;
+	sess->restart_pos = 0;
+	 
 	//打开文件
 	int fd  = open(sess->arg,O_RDONLY);
 	if(fd ==-1)
@@ -532,21 +536,77 @@ static void do_retr(session_t *sess)
 		ftp_reply(sess,FTP_FILEFAIL,"Failed to open file.");
 		return;
 	}
-	//150应答
+	
+	//定位断点
+	if(offset != 0)
+	{
+		ret = lseek(fd,offset,SEEK_SET);
+		if(ret == -1)
+		{
+			ftp_reply(sess,FTP_FILEFAIL,"Failed to open file.");
+			return;
+		}
+	}
+	
 	char text[1024] = {0};
 	if(sess->is_ascii)
 	{ //ASCII模式
-		
+		sprintf(text,"Opening ASCII mode data connection for %s (%6ld bytes).",sess->arg,sbuf.st_size);
 	}
 	else
 	{  //Binary模式
 		sprintf(text,"Opening BINARY mode data connection for %s (%6ld bytes).",sess->arg,sbuf.st_size);
 	}
-	if( list_common(sess,1) ==0)
-		return;
+	//150应答
+	ftp_reply(sess,FTP_DATACONN,text);
+	//发送文件
+	int flag =1;
+	char buf[4096] = {0};
+	while(1)
+	{
+		ret = read(fd,buf,sizeof(4096));
+		if(ret == -1)
+		{
+			if(errno == EINTR)
+			{
+				continue;
+			}
+			else
+			{
+				//读取出错
+				flag = 1;
+				break;
+			}
+				
+		}
+		else if(ret ==0 )
+		{
+			//读取成功
+			flag = 0;
+			break;
+		}
+		if( writen(sess->data_fd,buf,ret)!=ret )
+		{
+			flag = 2;
+			break;
+		}
+	}
+	//关闭数据套接字
 	close(sess->data_fd);
 	sess->data_fd = -1;
-	ftp_reply(sess,FTP_TRANSFEROK,"Directory send OK.");
+	if(flag == 0)
+	{	//226
+		ftp_reply(sess,FTP_TRANSFEROK,"Transfer complete.");
+	}
+	else if(flag == 1)
+	{	//451  
+		ftp_reply(sess,FTP_BADSENDFILE,"Failure reading from local file.");
+	}
+	else if(flag == 2)
+	{	//426 
+		ftp_reply(sess,FTP_BADSENDNET,"Failure writing to network stream.");
+	}
+	
 }
 static void do_stor(session_t *sess)
 {}
