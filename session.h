@@ -28,6 +28,13 @@ typedef struct session
 	long long restart_pos;
 	//重命名RNFR
 	char* rnfr_name;
+	//限速用变量
+	unsigned int uplaod_rate_max;
+	unsigned int download_rate_max;
+	long start_sec;//开始传输时间
+	long start_usec;
+	
+	
 } session_t;
 void start_session(session_t *sess);
 

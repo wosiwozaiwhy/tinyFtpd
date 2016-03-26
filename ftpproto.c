@@ -22,7 +22,8 @@ void upload_common(session_t* sess,int is_append);
 void ftp_reply(session_t* sess,int status,const char* text);
 //用来根据对应代码status 构造带-符号的响应文本内容
 void ftp_lreply(session_t* sess,int status,const char* text);
-
+//限速函数
+void limit_rate(session_t* sess,int bytes_transfered,int is_upload);
 
 static void do_user(session_t *sess);
 static void do_pass(session_t *sess);
@@ -357,7 +358,38 @@ int list_common(session_t* sess,int detail)
 	closedir(dir);
 	return 1;
 }
-
+void limit_rate(session_t* sess,int bytes_transfered,int is_upload)
+{
+	//睡眠时间 = ((当前传输速度/最大速度) - 1) * 当前传输时间
+	long curr_sec = get_time_sec();
+	long curr_usec = get_time_usec();
+	double used_time = curr_sec - sess->start_sec;
+	used_time +=(double)( curr_usec - sess->start_usec)/1000000;
+	//当前传输速度 +1为了把当前速度值调高一点
+	unsigned int now_rate =  (unsigned int)((double)bytes_transfered / used_time)+1;
+	double sleep_time = 0;
+	if(is_upload)
+	{
+		if(now_rate < sess->uplaod_rate_max)
+			return;
+		sleep_time = (now_rate/sess->uplaod_rate_max - (double)1) * used_time;
+	}
+	else
+	{
+		if(now_rate < sess->download_rate_max)
+			return;
+		sleep_time = (now_rate/sess->download_rate_max - 1) * used_time;
+	}
+	nano_sleep(sleep_time);
+	//因为上传时使用read && write，write时间不可预料，将重设时间写入了upload_common中write后以使限速更精确
+	//而下载时，使用sendfile系统调用零拷贝，则不在进入用户态，于是limit_rate中重设时间
+	if(!is_upload)
+	{
+		sess->start_sec = get_time_sec();
+		sess->start_usec = get_time_usec();
+	}
+	
+}
 void upload_common(session_t* sess,int is_append)
 {
 	printf("begin upload\n");
@@ -426,7 +458,10 @@ void upload_common(session_t* sess,int is_append)
 	ftp_reply(sess,FTP_DATACONN,text);
 	//上传文件
 	int flag =1;
-	char buf[1024] = {0};
+	char buf[65536] = {0};
+	//记录传输前时间
+	sess->start_sec = get_time_sec();
+	sess->start_usec = get_time_usec();
 	while(1)
 	{
 		ret = read(sess->data_fd,buf,sizeof(buf));
@@ -450,11 +485,15 @@ void upload_common(session_t* sess,int is_append)
 			flag = 0;
 			break;
 		}
+		//发送前检查是否超速，超了就限速
+		limit_rate(sess,ret,1);
 		if( writen(fd,buf,ret)!=ret )
 		{
 			flag = 1;
 			break;
 		}
+		sess->start_sec = get_time_sec();
+		sess->start_usec = get_time_usec();
 	}
 	
 	//解锁fd
@@ -695,6 +734,9 @@ static void do_retr(session_t *sess)
 	{
 		bytes_to_send -= offset;
 	}
+	//记录传输前时间
+	sess->start_sec = get_time_sec();
+	sess->start_usec = get_time_usec();
 	while(bytes_to_send)
 	{	//	因上面已经定位了断点位置，所以第三个参数设置为NULL
 		int bytes_this_time = bytes_to_send >4096?4096:bytes_to_send;
@@ -704,7 +746,7 @@ static void do_retr(session_t *sess)
 			flag =2;
 			break;
 		}
-		
+		limit_rate(sess,ret,0);
 		bytes_this_time -=ret;
 		
 	}

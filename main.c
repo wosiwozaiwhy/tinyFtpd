@@ -9,6 +9,11 @@ int
 main(){
 	
 /*
+	
+
+	return 0;
+*/
+	parseconf_load_file(TINYFTPD_CONF);
 	parseconf_load_file(TINYFTPD_CONF);
 	printf("pasv_enable = %d\n",tunable_pasv_enable);
 	printf("port_enable = %d\n",tunable_port_enable);
@@ -20,9 +25,6 @@ main(){
 	printf("tunable_local_umask = %d\n",tunable_local_umask);
 	printf("tunable_upload_max_rate = %d\n",tunable_upload_max_rate);
 	printf("tunable_listen_address = %s\n",tunable_listen_address);
-
-	return 0;
-*/
 	if( getuid()!=0 )
 	{
 		fprintf(stderr,"tinyFtpd : must be start as root user\n");
@@ -42,8 +44,13 @@ main(){
 		//断点续传
 		0,
 		//重命名RNFR
-		NULL
+		NULL,
+		//限速用变量
+		0,0,0,0
 	};
+	sess.uplaod_rate_max = tunable_upload_max_rate;
+	sess.download_rate_max = tunable_download_max_rate;
+	
 	signal(SIGCHLD,SIG_IGN);
 	int listenfd = tcp_server(NULL,5188);
 	//declare connect fd
