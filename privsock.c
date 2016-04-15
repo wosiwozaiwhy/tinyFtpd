@@ -3,7 +3,7 @@
 #include "sysutil.h"
 
 void priv_sock_init(session_t *sess)
-{
+{ 
 	int sockfds[2];
 	if (socketpair(PF_UNIX, SOCK_STREAM, 0, sockfds) < 0)
 		ERR_EXIT("socketpair");

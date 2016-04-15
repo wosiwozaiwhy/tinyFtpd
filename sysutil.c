@@ -1,6 +1,7 @@
 #include "sysutil.h"
+#include "session.h"
 
-int tcp_client(unsigned short port)
+int tcp_client(const char *host_ip,unsigned short port)
 {
 	int sock;
 	if ((sock = socket(PF_INET, SOCK_STREAM, 0)) < 0)
@@ -12,13 +13,15 @@ int tcp_client(unsigned short port)
 		if ((setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const char*)&on, sizeof(on))) < 0)
 			ERR_EXIT("setsockopt");
 
-		char ip[16] = {0};
-		getlocalip(ip);
+		//char ip[16] = {0};
+		//printf("tcp_client go \n");
+		//getlocalip(ip);
+		//strcpy(ip,sess.localip);
 		struct sockaddr_in localaddr;
 		memset(&localaddr, 0, sizeof(localaddr));
 		localaddr.sin_family = AF_INET;
 		localaddr.sin_port = htons(port);
-		localaddr.sin_addr.s_addr = inet_addr(ip);
+		localaddr.sin_addr.s_addr = inet_addr(host_ip);
 		if (bind(sock, (struct sockaddr*)&localaddr, sizeof(localaddr)) < 0)
 			ERR_EXIT("bind");
 	}
@@ -74,7 +77,8 @@ int tcp_server(const char *host, unsigned short port)
 /*需要修改 /etc/hosts-- 要不就换一种编程方式*/
 /*
 /etc/hosts中设置多种host
-/etc/sysconfig/network中指定使用哪个host，以解决getlocalip返回127.0.0.1
+在sess数据结构中加入localip，由配置文件读得，指明绑定的localip，防止二义性
+于是不再调用getlocalip
 */
 int getlocalip(char *ip)
 {
@@ -83,9 +87,11 @@ int getlocalip(char *ip)
 		return -1;
 	struct hostent *hp;
 	if ((hp = gethostbyname(host)) == NULL)
-	return -1;
+		return -1;
 
 	strcpy(ip, inet_ntoa(*(struct in_addr*)hp->h_addr));
+	printf("ip---------:  %s\n",ip);
+	
 	return 0;
 }
 
@@ -156,7 +162,7 @@ int read_timeout(int fd, unsigned int wait_seconds)
 		else if (ret == 1)
 			ret = 0;
 	}
-
+ 
 	return ret;
 }
 

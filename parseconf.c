@@ -52,7 +52,7 @@ void parseconf_load_file(const char* path)
 {
 	FILE* fp = fopen(path,"r");
 	if(fp==NULL)
-		ERR_EXIT("fopen conf");
+		ERR_EXIT("fopen conf error");
 	
 	char setting_line[1024] = {0};
 	while( fgets(setting_line,sizeof(setting_line),fp)!=NULL )
@@ -92,7 +92,7 @@ void parseconf_load_setting(const char* setting)
 			const char** p_cur_setting = p_str_setting->p_variable;
 			//如果读取的key value与默认值冲突了，则free默认值
 			if(*p_cur_setting)
-				free((char*)*p_cur_setting);
+				free((char*)*p_cur_setting); 
 			//strdup内部分配内存，使指针可以安全指向栈上变量
 			*p_cur_setting = strdup(value);
 			//printf("*p_cur_setting : %d\n",**p_cur_setting);

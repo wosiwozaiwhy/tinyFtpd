@@ -95,7 +95,7 @@ void set_privilege()
 	capset(&cap_header,&cap_data);
 }
 
-static void privop_pasv_get_data_sock(session_t *sess)
+static void privop_pasv_get_data_sock(session_t *sess) 
 {
 	unsigned short port = (unsigned short)priv_sock_get_int(sess->parent_fd);
 	char ip[16] = {0};
@@ -107,7 +107,7 @@ static void privop_pasv_get_data_sock(session_t *sess)
 	addr.sin_port = htons(port);
 	addr.sin_addr.s_addr = inet_addr(ip);
 	//绑定20端口号，建立连接，返回socket fd
-	int fd = tcp_client(20);
+	int fd = tcp_client(sess->localip,20);
 	if(fd == -1)
 	{
 		priv_sock_send_result(sess->parent_fd, PRIV_SOCK_RESULT_BAD);
@@ -136,9 +136,9 @@ static void privop_pasv_active(session_t *sess)
 }
 static void privop_pasv_listen(session_t *sess)
 {
-	char ip[16] = {0};
-	getlocalip(ip);
-	sess->listen_fd= tcp_server(ip,0);
+	//char ip[16] = {0};
+	//getlocalip(ip);
+	sess->listen_fd= tcp_server(sess->localip,0);
 	
 	struct sockaddr_in addr;
 	socklen_t addrlen = sizeof(addr);

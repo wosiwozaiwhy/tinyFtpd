@@ -1,19 +1,19 @@
 #include "tunable.h"
 
-/*Ä¬ÈÏÖµ*/
-//±»¶¯Ä£Ê½¿ª¹Ø
+/*é»˜è®¤å€¼*/
+//è¢«åŠ¨æ¨¡å¼å¼€å…³
 int tunable_pasv_enable = 1;
-//Ö÷¶¯Ä£Ê½¿ª¹Ø
+//ä¸»åŠ¨æ¨¡å¼å¼€å…³
 int tunable_port_enable = 1;
-//¼àÌı¶Ë¿Ú£¬Ä¬ÈÏ21
+//ç›‘å¬ç«¯å£ï¼Œé»˜è®¤21
 unsigned int tunable_listen_port = 21;
-//×î´óÁ¬½ÓÊı Ä¬ÈÏ2000
+//æœ€å¤§è¿æ¥æ•° é»˜è®¤2000
 unsigned int tunable_max_clients = 2000;
-//Ä¬ÈÏ
+//é»˜è®¤
 unsigned int tunable_max_per_ip = 50;
-//½ÓÊÕÁ¬½Ó³¬Ê±Ê±¼ä£¬Ä¬ÈÏ60s
+//æ¥æ”¶è¿æ¥è¶…æ—¶æ—¶é—´ï¼Œé»˜è®¤60s
 unsigned int tunable_accept_timeout = 60;
-//Ö÷¶¯Á¬½Ó³¬Ê±Ê±¼ä£¬Ä¬ÈÏ60s
+//ä¸»åŠ¨è¿æ¥è¶…æ—¶æ—¶é—´ï¼Œé»˜è®¤60s
 unsigned int tunable_connect_timeout = 60;
 unsigned int tunable_idle_session_timeout = 300;
 unsigned int tunable_data_connection_timeout = 300;

@@ -18,13 +18,13 @@ typedef struct session
 	int data_fd;
 	//监听套接字 用来接收client连接 被动
 	int listen_fd;
-	//process communicate
+	//process communicate 
 	//父子进程通信的sockfd
 	int parent_fd;
 	int child_fd;
 	
 	/*协议状态*/
-	//是否ascii模式
+	//是否ascii模式 
 	int is_ascii;
 	//断点续传
 	long long restart_pos;

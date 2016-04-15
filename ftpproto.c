@@ -4,7 +4,7 @@
 #include "ftpcodes.h"
 #include "tunable.h"
 #include "privsock.h"
-//#include "common.h"
+#include "common.h"
 
 //判断是否PORT or PASV模式已开启
 int port_active(session_t* sess);
@@ -93,7 +93,7 @@ static ftpcmd_t ctrl_cmds[] = {
 	{"REST",	do_rest	},
 	{"ABOR",	do_abor	},
 	{"\377\364\377\362ABOR", do_abor},
-	{"PWD",		do_pwd	},
+	{"PWD",		do_pwd	}, 
 	{"XPWD",	do_pwd	},
 	{"MKD",		do_mkd	},
 	{"XMKD",	do_mkd	},
@@ -116,7 +116,7 @@ static ftpcmd_t ctrl_cmds[] = {
 void handle_child(session_t* sess)
 {
 	ftp_reply(sess,FTP_GREET,"(tinyFtpd)");
-	
+
 	//循环读取客户端FTP请求
 	int ret;
 	while(1)
@@ -144,8 +144,8 @@ void handle_child(session_t* sess)
 		//解析处理FTP命令与参数
 		//命令转化为大写
 		str_upper(sess->cmd);
-		
-		
+
+
 		int i=0;
 		int size = sizeof(ctrl_cmds)/sizeof(ctrl_cmds[0]);
 		while(i<size)
@@ -162,7 +162,7 @@ void handle_child(session_t* sess)
 				}
 				break;
 			}
-			
+
 			i++;
 		}
 		//遍历结束未找到对应命令，未识别
@@ -183,7 +183,7 @@ int get_port_fd(session_t* sess)
 		char* ip = inet_ntoa(sess->port_addr->sin_addr);
 		priv_sock_send_int(sess->child_fd, (int)port);
 		priv_sock_send_buf(sess->child_fd, ip, strlen(ip));
-		
+
 		//获取应答
 		char res = priv_sock_get_result(sess->child_fd);
 		if(res == PRIV_SOCK_RESULT_BAD )
@@ -213,7 +213,7 @@ int get_pasv_fd(session_t* sess)
 		return 1;
 	}
 	return 1;
-	
+
 }
 int port_active(session_t* sess)
 {
@@ -227,9 +227,9 @@ int port_active(session_t* sess)
 		}
 		return 1;
 	}
-	
+
 	return 0;
-} 
+}
 int pasv_active(session_t* sess)
 {
 	//向nobody请求是否处于被动模式
@@ -244,7 +244,7 @@ int pasv_active(session_t* sess)
 		}
 		return 1;
 	} */
-	priv_sock_send_cmd(sess->child_fd,PRIV_SOCK_PASV_ACTIVE);	
+	priv_sock_send_cmd(sess->child_fd,PRIV_SOCK_PASV_ACTIVE);
 	int active = priv_sock_get_int(sess->child_fd);
 	if(active)
 	{
@@ -255,7 +255,7 @@ int pasv_active(session_t* sess)
 		}
 		return 1;
 	}
-	return 0; 
+	return 0;
 }
 int get_transfer_fd(session_t* sess)
 {
@@ -269,12 +269,12 @@ int get_transfer_fd(session_t* sess)
 	int ret =1;
 	//主动模式
 	if(port_active(sess))
-	{	
+	{
 		//失败则返回0
 		if( get_port_fd(sess) == 0 )
 			ret =0;
-		
-		
+
+
 	}
 	if(pasv_active(sess))
 	{
@@ -316,26 +316,26 @@ int list_common(session_t* sess,int detail)
 		//过滤隐藏文件：开头.号的
 		if(dt->d_name[0] == '.')
 			continue;
-		
+
 		//打印结果到buf中
 		char buf[1024] = {0};
-		
+
 		if(detail)
 		{
 			//获取权限位，放入perms中
 			const char* perms = statbuf_get_perms(&sbuf);
-			
+
 			//@off 当前串长度
 			int off =0;
 			off += sprintf(buf,"%s ",perms);//文件类型和权限位放入buf
 			off +=sprintf(off + buf,"%3lu %-8d %-8d",sbuf.st_nlink,sbuf.st_uid,sbuf.st_gid);//链接数 uid gid放入buf
 			off +=sprintf(off + buf,"%8lu ",sbuf.st_size);//文件大小放入buf
-			
+
 			/* 获取时间返回到datebuf中
 			对于修改时间，上次修改时间距离现在半年以上的显示年份，否则显示具体24小时制时间 */
 			const char* datebuf = statbuf_get_date(&sbuf);
 			off +=sprintf(off + buf,"%s ",datebuf);//格式化时间放入buf
-			
+
 			//如果是符号链接文件要给出指向
 			if(S_ISLNK(sbuf.st_mode))
 			{
@@ -352,7 +352,7 @@ int list_common(session_t* sess,int detail)
 			{
 				sprintf(buf,"%s\r\n",dt->d_name);//文件名放入buf
 			}
-			
+
 			writen(sess->data_fd,buf,strlen(buf));
 	}
 	closedir(dir);
@@ -388,7 +388,7 @@ void limit_rate(session_t* sess,int bytes_transfered,int is_upload)
 		sess->start_sec = get_time_sec();
 		sess->start_usec = get_time_usec();
 	}
-	
+
 }
 void upload_common(session_t* sess,int is_append)
 {
@@ -396,7 +396,7 @@ void upload_common(session_t* sess,int is_append)
 	//获取断点信息
 	long long offset = sess->restart_pos;
 	sess->restart_pos = 0;
-	 
+
 	//打开文件
 	int fd  = open(sess->arg,O_CREAT | O_WRONLY,0666);
 	if(fd ==-1)
@@ -412,7 +412,7 @@ void upload_common(session_t* sess,int is_append)
 		ftp_reply(sess,FTP_UPLOADFAIL,"Could not lock file.");
 		return;
 	}
-	
+
 	//直接STOR指令
 	if(!is_append && offset==0)
 	{
@@ -429,16 +429,16 @@ void upload_common(session_t* sess,int is_append)
 	{
 		ret = lseek(fd,0,SEEK_END);
 	}
-	
-	
+
+
 	if(ret < 0)
 	{
 		ftp_reply(sess,FTP_UPLOADFAIL,"Could not seek file.");
 		return;
 	}
-	
+
 	char text[1024] = {0};
-	
+
 	struct stat sbuf;
 	ret = fstat(fd,&sbuf);
 	if(!S_ISREG(sbuf.st_mode) )
@@ -453,7 +453,7 @@ void upload_common(session_t* sess,int is_append)
 	else
 	{  //Binary模式
 		sprintf(text,"Opening BINARY mode data connection for %s (%6ld bytes).",sess->arg,sbuf.st_size);
-	} 
+	}
 	//150应答
 	ftp_reply(sess,FTP_DATACONN,text);
 	//上传文件
@@ -477,7 +477,7 @@ void upload_common(session_t* sess,int is_append)
 				flag = 2;
 				break;
 			}
-				
+
 		}
 		else if(ret ==0 )
 		{
@@ -495,10 +495,10 @@ void upload_common(session_t* sess,int is_append)
 		sess->start_sec = get_time_sec();
 		sess->start_usec = get_time_usec();
 	}
-	
+
 	//解锁fd
 	unlock_file(fd);
-	
+
 	//关闭数据套接字和文件fd
 	close(fd);
 	close(sess->data_fd);
@@ -508,11 +508,11 @@ void upload_common(session_t* sess,int is_append)
 		ftp_reply(sess,FTP_TRANSFEROK,"Transfer complete.");
 	}
 	else if(flag == 1)
-	{	//451  
+	{	//451
 		ftp_reply(sess,FTP_BADSENDFILE,"Failure writing into local file.");
 	}
 	else if(flag == 2)
-	{	//426 
+	{	//426
 		ftp_reply(sess,FTP_BADSENDNET,"Failure reading from network stream.");
 	}
 }
@@ -538,7 +538,7 @@ static void do_user(session_t* sess)
 	}
 	sess->uid = pw->pw_uid;
 	ftp_reply(sess,FTP_GIVEPWORD,"please specify the password");
-	
+
 }
 //处理PASS
 static void do_pass(session_t* sess)
@@ -574,7 +574,7 @@ static void do_pass(session_t* sess)
 
 static void do_cwd(session_t *sess)
 {
-	
+
 	//更改失败发送550应答
 	if( chdir(sess->arg)< 0 )
 	{
@@ -582,11 +582,11 @@ static void do_cwd(session_t *sess)
 		return;
 	}
 	ftp_reply(sess,FTP_CWDOK,"Directory successfully changed.");
-	
+
 }
 static void do_cdup(session_t *sess)
 {
-	//chdir..  
+	//chdir..
 	//更改失败发送550应答
 	if( chdir("..")< 0 )
 	{
@@ -608,7 +608,7 @@ static void do_port(session_t *sess)
 	 sess->port_addr = (struct sockaddr_in*)malloc(sizeof(struct sockaddr_in));
 	 memset(sess->port_addr,0,sizeof(struct sockaddr_in));
 	 sess->port_addr->sin_family = AF_INET;
-	 
+
 	 unsigned char* p = (unsigned char*)&sess->port_addr->sin_port;
 	 p[0] = tmp[0];
 	 p[1] = tmp[1];
@@ -622,21 +622,21 @@ static void do_port(session_t *sess)
 }
 static void do_pasv(session_t *sess)
 {
-	
+
 	//接收到PASV命令，发送命令给nobody，让其创建监听套接字,获取监听端口号
 	priv_sock_send_cmd(sess->child_fd,PRIV_SOCK_PASV_LISTEN);
 	unsigned int port = priv_sock_get_int(sess->child_fd);
-	
-	char ip[16] = {0};
-	getlocalip(ip);
+
+	//char ip[16] = {0};
+	//getlocalip(ip);
 	unsigned int v[4];
-	sscanf(ip,"%u.%u.%u.%u",&v[0],&v[1],&v[2],&v[3]);
+	sscanf(sess->localip,"%u.%u.%u.%u",&v[0],&v[1],&v[2],&v[3]);
 	char text[1024] = {0};
 	//227 Entering Passive Mode (192,168,44,128,139,222).
 	sprintf(text,"Entering Passive Mode (%u,%u,%u,%u,%u,%u).",v[0],v[1],v[2],v[3],port>>8,port&0xFF);
-	
+
 	ftp_reply(sess,FTP_PASVOK,text);
-	
+
 }
 static void do_type(session_t *sess)
 {
@@ -658,10 +658,10 @@ static void do_type(session_t *sess)
 //static void do_stru(session_t *sess);
 //static void do_mode(session_t *sess);
 
-//请求文件下载指令 RETR 
+//请求文件下载指令 RETR
 static void do_retr(session_t *sess)
 {
-	/* 
+	/*
 	传输下载文件
 	关闭数据套接字
 	响应226 FTP_TRANSFEROK */
@@ -673,7 +673,7 @@ static void do_retr(session_t *sess)
 	//获取断点信息
 	long long offset = sess->restart_pos;
 	sess->restart_pos = 0;
-	 
+
 	//打开文件
 	int fd  = open(sess->arg,O_RDONLY);
 	if(fd ==-1)
@@ -689,7 +689,7 @@ static void do_retr(session_t *sess)
 		ftp_reply(sess,FTP_FILEFAIL,"Failed to open file.");
 		return;
 	}
-	
+
 	//判断是否是普通文件
 	struct stat sbuf;
 	ret = fstat(fd,&sbuf);
@@ -698,7 +698,7 @@ static void do_retr(session_t *sess)
 		ftp_reply(sess,FTP_FILEFAIL,"Failed to open file.");
 		return;
 	}
-	
+
 	//定位断点
 	if(offset != 0)
 	{
@@ -709,7 +709,7 @@ static void do_retr(session_t *sess)
 			return;
 		}
 	}
-	
+
 	char text[1024] = {0};
 	if(sess->is_ascii)
 	{ //ASCII模式
@@ -723,7 +723,7 @@ static void do_retr(session_t *sess)
 	ftp_reply(sess,FTP_DATACONN,text);
 	//发送文件
 	int flag =1;
-	
+
 	//使用sendfile发送文件 零拷贝
 	long long bytes_to_send = sbuf.st_size;
 	if(offset > bytes_to_send)
@@ -748,7 +748,7 @@ static void do_retr(session_t *sess)
 		}
 		limit_rate(sess,ret,0);
 		bytes_this_time -=ret;
-		
+
 	}
 	if(bytes_to_send == 0)
 	{
@@ -765,14 +765,14 @@ static void do_retr(session_t *sess)
 		ftp_reply(sess,FTP_TRANSFEROK,"Transfer complete.");
 	}
 	else if(flag == 1)
-	{	//451  
+	{	//451
 		ftp_reply(sess,FTP_BADSENDFILE,"Failure reading from local file.");
 	}
 	else if(flag == 2)
-	{	//426 
+	{	//426
 		ftp_reply(sess,FTP_BADSENDNET,"Failure writing to network stream.");
 	}
-	
+
 }
 static void do_stor(session_t *sess)
 {
@@ -840,7 +840,7 @@ static void do_pwd(session_t *sess)
 	getcwd(dir,1024);
 	sprintf(text,"\"%s\"",dir);
 	ftp_reply(sess,FTP_PWDOK,text);
-	
+
 }
 //新建目录
 static void do_mkd(session_t *sess)
@@ -852,7 +852,7 @@ static void do_mkd(session_t *sess)
 		return;
 	}
 	char text[2048] = {0};
-	
+
 	if(sess->arg[0] == '/')
 		sprintf(text,"%s created.",sess->arg);
 	else
@@ -878,7 +878,7 @@ static void do_rmd(session_t *sess)
 		ftp_reply(sess,FTP_FILEFAIL,"Remove directory failed.");
 		return;
 	}
-	
+
 	ftp_reply(sess,FTP_RMDIROK,"Remove directory  operation successful.");
 }
 //删除文件
@@ -889,7 +889,7 @@ static void do_dele(session_t *sess)
 		ftp_reply(sess,FTP_FILEFAIL,"Delete operation failed.");
 		return;
 	}
-	
+
 	ftp_reply(sess,FTP_DELEOK,"Delete operation successful.");
 }
 //响应Client申请重命名前的文件名
@@ -904,7 +904,7 @@ RNTO /home/solo/b.c.new
 	sess->rnfr_name = malloc(strlen(sess->arg)+1);
 	memset(sess->rnfr_name,0,strlen(sess->arg)+1);
 	strcpy(sess->rnfr_name,sess->arg);
-	
+
 	ftp_reply(sess,FTP_RNFROK,"Ready for RNTO.");
 }
 //响应Client重命名后的文件名
@@ -932,7 +932,7 @@ static void do_syst(session_t *sess)
 }
 static void do_feat(session_t *sess)
 {
-	
+
 	ftp_lreply(sess,FTP_FEAT,"Features:");
 	writen(sess->conn_fd, " EPRT\r\n", strlen(" EPRT\r\n"));
 	writen(sess->conn_fd, " EPSV\r\n", strlen(" EPSV\r\n"));
@@ -942,7 +942,7 @@ static void do_feat(session_t *sess)
 	writen(sess->conn_fd, " SIZE\r\n", strlen(" SIZE\r\n"));
 	writen(sess->conn_fd, " TVFS\r\n", strlen(" TVFS\r\n"));
 	writen(sess->conn_fd, " UTF8\r\n", strlen(" UTF8\r\n"));
-	ftp_reply(sess,FTP_FEAT,"End"); 
+	ftp_reply(sess,FTP_FEAT,"End");
 }
 static void do_size(session_t *sess)
 {
@@ -958,7 +958,7 @@ static void do_size(session_t *sess)
 	{
 		ftp_reply(sess,FTP_FILEFAIL,"Could not get file size.");
 		return;
-	} 
+	}
 	//成功查看
 	char text[1024] = {0};
 	sprintf(text,"%6ld",buf.st_size);
