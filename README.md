@@ -1,3 +1,14 @@
 # tinyFtpd
-**This is a tiny FTP server that imitate  a teacher named Mr Jiang's work**
-##a lot to do.........
+**功能已经基本完成**
+*包括一些基本项的文件配置*
+*主动模式PORT*
+*被动模式PASV*
+*登录功能*
+*下载功能*
+*上传功能*
+*断点续传*
+*传输限速*
+
+##一些需做的：
+##	限制ip单点功能  
+##	限制连接总数
