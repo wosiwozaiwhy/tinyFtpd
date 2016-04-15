@@ -3,6 +3,8 @@
 #include "common.h"
 typedef struct session
 {
+	//被动模式下本机监听的ip值
+	char localip[20];
 	//control connection
 	uid_t uid;
 	int conn_fd;
@@ -12,7 +14,7 @@ typedef struct session
 	
 	//数据连接参数
 	struct sockaddr_in* port_addr;
-	//数据传输套接字 用来连接client成功后/监听client连接主动后传输数据
+	//数据传输套接字 用来连接client成功后/监听client主动连接后传输数据
 	int data_fd;
 	//监听套接字 用来接收client连接 被动
 	int listen_fd;

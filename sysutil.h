@@ -5,7 +5,7 @@
 
 /*系统工具模块，目前与系统调用相关的函数还没有在这里封装完毕*/
 
-int tcp_client(unsigned short port);
+int tcp_client(const char *host_ip,unsigned short port);
 int tcp_server(const char *host, unsigned short port);
 
 int getlocalip(char *ip);
